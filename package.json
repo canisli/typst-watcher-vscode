@@ -1,0 +1,46 @@
+{
+    "name": "typst-autowatch",
+    "displayName": "Typst Autowatch",
+    "publisher": "canis",
+    "version": "0.0.1",
+    "engines": { "vscode": "^1.94.0" },
+    "activationEvents": [
+      "onStartupFinished",
+      "onLanguage:typst",
+      "onCommand:typst.toggleWatch",
+      "onCommand:typst.showLog"
+    ],
+    "contributes": {
+      "commands": [
+        { "command": "typst.toggleWatch", "title": "Typst: Toggle Autocompile" },
+        { "command": "typst.showLog", "title": "Typst: Show Build Log" }
+      ],
+      "menus": {
+        "explorer/context": [
+          { "command": "typst.toggleWatch", "when": "resourceExtname == .typ", "group": "navigation@10" },
+          { "command": "typst.showLog", "when": "resourceExtname == .typ", "group": "navigation@11" }
+        ]
+      },
+      "configuration": {
+        "title": "Typst Autowatch",
+        "properties": {
+          "typstAutowatch.typstPath": { "type": "string", "default": "typst" },
+          "typstAutowatch.outputDir": { "type": "string", "default": "^pdfs" },
+          "typstAutowatch.extraArgs": { "type": "array", "items": { "type": "string" }, "default": [] }
+        }
+      }
+    },
+    "main": "./out/extension.js",
+    "scripts": {
+      "compile": "tsc -p ./",
+      "watch": "tsc -w -p ./",
+      "package": "vsce package"
+    },
+    "devDependencies": {
+        "@types/vscode": "^1.94.0",
+        "@types/node": "^20.12.7",
+        "typescript": "^5.4.0",
+        "vsce": "^2.15.0"
+      }
+  }
+  
