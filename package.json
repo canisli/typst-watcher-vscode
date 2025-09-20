@@ -19,6 +19,10 @@
         "explorer/context": [
           { "command": "typst.toggleWatch", "when": "resourceExtname == .typ", "group": "navigation@10" },
           { "command": "typst.showLog", "when": "resourceExtname == .typ", "group": "navigation@11" }
+        ],
+        "editor/title/context": [
+          { "command": "typst.toggleWatch", "when": "resourceExtname == .typ", "group": "navigation@10" },
+          { "command": "typst.showLog", "when": "resourceExtname == .typ", "group": "navigation@11" }
         ]
       },
       "configuration": {

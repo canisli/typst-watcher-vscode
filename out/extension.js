@@ -54,8 +54,15 @@ class WatchManager {
     map = new Map(); // key: file fsPath
     decoEmitter = new vscode.EventEmitter();
     onDidChangeFileDecorations = this.decoEmitter.event;
+    statusBarItem;
     constructor(ctx) {
         this.ctx = ctx;
+        this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+        this.statusBarItem.command = 'typst.toggleWatch';
+        ctx.subscriptions.push(this.statusBarItem);
+        // Update status bar when active editor changes
+        vscode.window.onDidChangeActiveTextEditor(this.updateStatusBar.bind(this));
+        this.updateStatusBar();
     }
     isWatching(uri) {
         return this.map.has(uri.fsPath);
@@ -64,11 +71,40 @@ class WatchManager {
         return this.map.get(uri.fsPath)?.status ?? 'idle';
     }
     async toggle(uri) {
+        // If no URI provided, use the active editor
+        if (!uri) {
+            const activeEditor = vscode.window.activeTextEditor;
+            if (!activeEditor || path.extname(activeEditor.document.fileName) !== '.typ') {
+                vscode.window.showWarningMessage('No active Typst file to toggle autocompile.');
+                return;
+            }
+            uri = activeEditor.document.uri;
+        }
         if (this.isWatching(uri)) {
             this.stop(uri);
             return;
         }
         await this.start(uri);
+    }
+    updateStatusBar() {
+        const activeEditor = vscode.window.activeTextEditor;
+        if (!activeEditor || path.extname(activeEditor.document.fileName) !== '.typ') {
+            this.statusBarItem.hide();
+            return;
+        }
+        const uri = activeEditor.document.uri;
+        const isWatching = this.isWatching(uri);
+        const status = this.getStatus(uri);
+        if (isWatching) {
+            const statusIcon = status === 'ok' ? '🟢' : status === 'error' ? '🔴' : '🟡';
+            this.statusBarItem.text = `${statusIcon} Typst Auto`;
+            this.statusBarItem.tooltip = `Typst autocompile is ON. Click to stop. Status: ${status}`;
+        }
+        else {
+            this.statusBarItem.text = '⚪ Typst Auto';
+            this.statusBarItem.tooltip = 'Typst autocompile is OFF. Click to start.';
+        }
+        this.statusBarItem.show();
     }
     cfg() {
         const cfg = vscode.workspace.getConfiguration('typstAutowatch');
@@ -117,12 +153,14 @@ class WatchManager {
                 if (/\[\d{2}:\d{2}:\d{2}\]\s+compiling\s*\.\.\./i.test(trimmed)) {
                     item.status = 'starting';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for successful compilation: "[timestamp] compiled successfully"
                 if (/\[\d{2}:\d{2}:\d{2}\]\s+compiled successfully/i.test(trimmed)) {
                     item.status = 'ok';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for compilation with warnings: "[timestamp] compiled with warnings"
@@ -130,6 +168,7 @@ class WatchManager {
                     // Treat warnings as ok (green dot) - layout warnings are just noise
                     item.status = 'ok';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for compilation errors: "[timestamp] compiled with errors"
@@ -137,6 +176,7 @@ class WatchManager {
                     item.status = 'error';
                     item.lastErrorAt = Date.now();
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
             }
@@ -158,12 +198,14 @@ class WatchManager {
                 if (/\[\d{2}:\d{2}:\d{2}\]\s+compiling\s*\.\.\./i.test(trimmed)) {
                     item.status = 'starting';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for successful compilation: "[timestamp] compiled successfully"
                 if (/\[\d{2}:\d{2}:\d{2}\]\s+compiled successfully/i.test(trimmed)) {
                     item.status = 'ok';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for compilation with warnings: "[timestamp] compiled with warnings"
@@ -171,6 +213,7 @@ class WatchManager {
                     // Treat warnings as ok (green dot) - layout warnings are just noise
                     item.status = 'ok';
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
                 // Check for compilation errors: "[timestamp] compiled with errors"
@@ -178,6 +221,7 @@ class WatchManager {
                     item.status = 'error';
                     item.lastErrorAt = Date.now();
                     this.bump(uri);
+                    this.updateStatusBar();
                     continue;
                 }
             }
@@ -186,6 +230,7 @@ class WatchManager {
                 item.status = 'error';
                 item.lastErrorAt = Date.now();
                 this.bump(uri);
+                this.updateStatusBar();
             }
         });
         proc.on('exit', (code) => {
@@ -193,6 +238,7 @@ class WatchManager {
             item.status = code === 0 ? 'idle' : 'error';
             this.map.delete(uri.fsPath);
             this.bump(uri);
+            this.updateStatusBar();
         });
         proc.on('error', (error) => {
             log.appendLine(`\n[Process error: ${error.message}]`);
@@ -201,6 +247,7 @@ class WatchManager {
         });
         item.status = 'starting';
         this.bump(uri);
+        this.updateStatusBar();
         vscode.window.setStatusBarMessage(`Typst watch started: ${path.basename(uri.fsPath)}`, 2000);
     }
     stop(uri) {
@@ -215,6 +262,7 @@ class WatchManager {
         it.log.dispose();
         this.map.delete(uri.fsPath);
         this.bump(uri);
+        this.updateStatusBar();
         vscode.window.setStatusBarMessage(`Typst watch stopped: ${path.basename(uri.fsPath)}`, 2000);
     }
     showLog(uri) {
