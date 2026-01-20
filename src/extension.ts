@@ -102,20 +102,38 @@ class WatchManager {
     // rootdir is the workspace folder if present, otherwise the file's folder
     const rootdir = ws ? ws.uri.fsPath : path.dirname(uri.fsPath);
   
-    // Ensure ^pdfs (or whatever you set) exists under root
-    const pdfDirAbs = path.join(rootdir, outputDir);
-    if (!fs.existsSync(pdfDirAbs)) fs.mkdirSync(pdfDirAbs, { recursive: true });
+    // Check if we're in the typst/ folder
+    const isTypstFolder = rootdir.includes('/typst/') || rootdir.endsWith('/typst');
   
-    const name = path.basename(uri.fsPath, '.typ');         // $name
-    const fnRel = path.relative(rootdir, uri.fsPath);       // $fn (relative to root)
-    const outRel = path.join(outputDir, `${name}.pdf`);     // $rootdir/^pdfs/$name.pdf (relative)
+    let cmd: string;
+    let args: string[];
+    let cwd: string;
   
-    const args = ['watch', fnRel, outRel, '--root', rootdir, ...extraArgs];
+    if (isTypstFolder) {
+      // Use standard typst watch for typst/ folder
+      // Ensure ^pdfs (or whatever you set) exists under root
+      const pdfDirAbs = path.join(rootdir, outputDir);
+      if (!fs.existsSync(pdfDirAbs)) fs.mkdirSync(pdfDirAbs, { recursive: true });
+    
+      const name = path.basename(uri.fsPath, '.typ');         // $name
+      const fnRel = path.relative(rootdir, uri.fsPath);       // $fn (relative to root)
+      const outRel = path.join(outputDir, `${name}.pdf`);     // $rootdir/^pdfs/$name.pdf (relative)
+    
+      cmd = typstPath;
+      args = ['watch', fnRel, outRel, '--root', rootdir, ...extraArgs];
+      cwd = rootdir;
+    } else {
+      // Use custom watch.sh script for other folders
+      const filename = path.basename(uri.fsPath);
+      cmd = '/Users/canis/dev/01_learning/new notes/watch.sh';
+      args = [filename];
+      cwd = path.dirname(uri.fsPath);
+    }
   
     const log = vscode.window.createOutputChannel(`Typst: ${path.basename(uri.fsPath)}`);
-    log.appendLine(`$ ${typstPath} ${args.join(' ')}`);
+    log.appendLine(`$ ${cmd} ${args.join(' ')}`);
   
-    const proc = spawn(typstPath, args, { cwd: rootdir, shell: process.platform === 'win32' });
+    const proc = spawn(cmd, args, { cwd, shell: process.platform === 'win32' });
     const item = new WatchItem(proc, log);
     this.map.set(uri.fsPath, item);
     this.bump(uri);
